@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Key Length Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        input[type="text"]:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .copy-button {
+            background-color: #28a745;
+            margin-left: 10px;
+        }
+        .copy-button:hover {
+            background-color: #1e7e34;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 API Key Length Test Tool</h1>
+        <p>Use this tool to test your Delta Exchange API key and secret before using them in the application.</p>
+        
+        <div class="form-group">
+            <label for="apiKey">API Key:</label>
+            <input type="text" id="apiKey" placeholder="Enter your Delta Exchange API key here..." oninput="checkLength()">
+        </div>
+        
+        <div class="form-group">
+            <label for="apiSecret">API Secret:</label>
+            <input type="text" id="apiSecret" placeholder="Enter your Delta Exchange API secret here..." oninput="checkLength()">
+        </div>
+        
+        <button onclick="checkLength()">Check Length & Format</button>
+        <button class="copy-button" onclick="copyResults()">Copy Results</button>
+        
+        <div id="results"></div>
+        
+        <div class="info" style="margin-top: 30px;">
+            <h3>📋 Expected Format:</h3>
+            <ul>
+                <li><strong>Length:</strong> Exactly 60 characters</li>
+                <li><strong>Characters:</strong> Alphanumeric (0-9, a-z, A-Z)</li>
+                <li><strong>Case:</strong> Can be mixed case</li>
+                <li><strong>No spaces:</strong> No leading or trailing spaces</li>
+            </ul>
+        </div>
+        
+        <div class="warning" style="margin-top: 20px;">
+            <h3>⚠️ Common Issues:</h3>
+            <ul>
+                <li><strong>Extra spaces:</strong> Copying with spaces at beginning or end</li>
+                <li><strong>Partial copy:</strong> Not selecting the entire key</li>
+                <li><strong>Line breaks:</strong> Copying with formatting</li>
+                <li><strong>Wrong characters:</strong> Using uppercase or special characters</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function checkLength() {
+            const apiKey = document.getElementById('apiKey').value;
+            const apiSecret = document.getElementById('apiSecret').value;
+            const resultsDiv = document.getElementById('results');
+            
+            let results = '<h3>🔍 Analysis Results:</h3>';
+            
+            // Check API Key
+            results += '<h4>API Key:</h4>';
+            if (!apiKey) {
+                results += '<div class="error">❌ No API key entered</div>';
+            } else {
+                const keyLength = apiKey.length;
+                const keyValid = keyLength === 60;
+                const keyFormat = /^[0-9a-zA-Z]{60}$/.test(apiKey);
+                const hasSpaces = /\s/.test(apiKey);
+                
+                results += `<div class="${keyValid ? 'success' : 'error'}">`;
+                results += `📏 Length: ${keyLength} characters ${keyValid ? '✅' : '❌'} (expected: 60)<br>`;
+                results += `🔤 Format: ${keyFormat ? '✅ Valid alphanumeric format' : '❌ Invalid format'} (should be 60 alphanumeric characters)<br>`;
+                results += `🚫 Spaces: ${hasSpaces ? '❌ Contains spaces' : '✅ No spaces'}<br>`;
+                results += `👀 Preview: ${apiKey.substring(0, 8)}...${apiKey.substring(keyLength - 8)}`;
+                results += '</div>';
+            }
+            
+            // Check API Secret
+            results += '<h4>API Secret:</h4>';
+            if (!apiSecret) {
+                results += '<div class="error">❌ No API secret entered</div>';
+            } else {
+                const secretLength = apiSecret.length;
+                const secretValid = secretLength === 60;
+                const secretFormat = /^[0-9a-zA-Z]{60}$/.test(apiSecret);
+                const hasSpaces = /\s/.test(apiSecret);
+                
+                results += `<div class="${secretValid ? 'success' : 'error'}">`;
+                results += `📏 Length: ${secretLength} characters ${secretValid ? '✅' : '❌'} (expected: 60)<br>`;
+                results += `🔤 Format: ${secretFormat ? '✅ Valid alphanumeric format' : '❌ Invalid format'} (should be 60 alphanumeric characters)<br>`;
+                results += `🚫 Spaces: ${hasSpaces ? '❌ Contains spaces' : '✅ No spaces'}<br>`;
+                results += `👀 Preview: ${apiSecret.substring(0, 8)}...${apiSecret.substring(secretLength - 8)}`;
+                results += '</div>';
+            }
+            
+            // Overall status
+            const keyValid = apiKey && apiKey.length === 60 && /^[0-9a-zA-Z]{60}$/.test(apiKey) && !/\s/.test(apiKey);
+            const secretValid = apiSecret && apiSecret.length === 60 && /^[0-9a-zA-Z]{60}$/.test(apiSecret) && !/\s/.test(apiSecret);
+            
+            results += '<h4>Overall Status:</h4>';
+            if (keyValid && secretValid) {
+                results += '<div class="success">✅ Both API key and secret are valid! You can use them in the application.</div>';
+            } else {
+                results += '<div class="error">❌ There are issues with your API key or secret. Please fix them before using in the application.</div>';
+            }
+            
+            resultsDiv.innerHTML = results;
+        }
+        
+        function copyResults() {
+            const apiKey = document.getElementById('apiKey').value;
+            const apiSecret = document.getElementById('apiSecret').value;
+            
+            const report = `API Key Length Test Report:
+            
+API Key:
+- Length: ${apiKey.length} characters
+- Valid: ${apiKey.length === 60 && /^[0-9a-zA-Z]{60}$/.test(apiKey) && !/\s/.test(apiKey)}
+- Preview: ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 8)}
+
+API Secret:
+- Length: ${apiSecret.length} characters
+- Valid: ${apiSecret.length === 64 && /^[0-9a-f]{64}$/.test(apiSecret) && !/\s/.test(apiSecret)}
+- Preview: ${apiSecret.substring(0, 8)}...${apiSecret.substring(apiSecret.length - 8)}
+
+Overall: ${(apiKey.length === 60 && apiSecret.length === 64) ? 'VALID' : 'INVALID'}`;
+            
+            navigator.clipboard.writeText(report).then(() => {
+                alert('Results copied to clipboard!');
+            });
+        }
+        
+        // Auto-check on page load
+        window.onload = function() {
+            checkLength();
+        };
+    </script>
+</body>
+</html> 

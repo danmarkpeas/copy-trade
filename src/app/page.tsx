@@ -1,103 +1,74 @@
-import Image from "next/image";
+"use client"
+import Link from "next/link";
 
-export default function Home() {
+const brokers = [
+  { name: "Binance", logo: "/globe.svg" },
+  { name: "Bybit", logo: "/globe.svg" },
+  { name: "OKX", logo: "/globe.svg" },
+  { name: "Kraken", logo: "/globe.svg" },
+];
+
+export default function LandingPage() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-[#f4f7fa] dark:bg-zinc-950 flex flex-col">
+      {/* Header */}
+      <header className="w-full max-w-7xl mx-auto flex items-center justify-between py-6 px-6 md:px-12">
+        <div className="flex items-center gap-2">
+          <img src="/globe.svg" alt="CopyTrade Logo" className="w-8 h-8 rounded bg-neutral-100 dark:bg-neutral-800 p-1" />
+          <span className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">CopyTrade</span>
+        </div>
+        <nav className="hidden md:flex gap-8 text-zinc-600 dark:text-zinc-300 font-medium text-base">
+          <Link href="#about" className="hover:text-black dark:hover:text-white transition">About</Link>
+          <Link href="#traders" className="hover:text-black dark:hover:text-white transition">For Traders</Link>
+          <Link href="#followers" className="hover:text-black dark:hover:text-white transition">For Followers</Link>
+          <Link href="#blog" className="hover:text-black dark:hover:text-white transition">Blog</Link>
+        </nav>
+        <Link href="/login" className="bg-white shadow px-6 py-2 rounded-full font-semibold text-zinc-800 hover:bg-zinc-100 border border-zinc-200 dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800 transition">Sign Up</Link>
+      </header>
+      {/* Hero Section */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 pb-16">
+        <div className="max-w-2xl w-full flex flex-col items-center mt-8 mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold text-center text-zinc-900 dark:text-zinc-100 mb-4">Connect. Copy. Grow.</h1>
+          <p className="text-lg md:text-xl text-center text-zinc-600 dark:text-zinc-300 mb-6">
+            CopyTrade lets you follow top traders, automate your portfolio, and grow your wealth with ease.
+          </p>
+        </div>
+        {/* Feature Cards */}
+        <div className="flex flex-col md:flex-row gap-6 w-full max-w-5xl justify-center">
+          {/* Portfolio Card */}
+          <div className="flex-1 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg p-8 flex flex-col items-start min-w-[260px]">
+            <div className="text-sm text-zinc-500 mb-2">Your portfolio</div>
+            <div className="text-3xl font-bold text-green-600 mb-1">$12,450.00</div>
+            <div className="text-xs text-zinc-400 mb-4">Last 30 days</div>
+            <div className="w-full h-16 flex items-end">
+              {/* Placeholder for chart */}
+              <svg width="100%" height="60" viewBox="0 0 160 60"><polyline fill="none" stroke="#22c55e" strokeWidth="3" points="0,50 30,40 60,45 90,30 120,20 160,10" /></svg>
+            </div>
+          </div>
+          {/* Connect Brokers Card */}
+          <div className="flex-1 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg p-8 flex flex-col items-center min-w-[260px]">
+            <div className="text-sm text-zinc-500 mb-4">Connect brokers</div>
+            <div className="flex gap-4 mb-4">
+              {brokers.map(broker => (
+                <div key={broker.name} className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shadow">
+                  <img src={broker.logo} alt={broker.name} className="w-6 h-6" />
+                </div>
+              ))}
+            </div>
+            <Link href="/login" className="mt-2 bg-black text-white font-medium px-5 py-2 rounded-full shadow hover:bg-zinc-800 transition">Get Started</Link>
+          </div>
+          {/* Insights Card */}
+          <div className="flex-1 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg p-8 flex flex-col min-w-[260px]">
+            <div className="text-sm text-zinc-500 mb-2">Insights & performance</div>
+            <div className="text-base text-zinc-700 dark:text-zinc-200 mb-2">“Your portfolio outperformed 85% of followers this month.”</div>
+            <div className="text-xs text-zinc-400 mb-4">Get tips and analytics to improve your results.</div>
+            <div className="w-full h-10 flex items-end">
+              {/* Placeholder for mini chart or stat */}
+              <svg width="100%" height="40" viewBox="0 0 120 40"><polyline fill="none" stroke="#818cf8" strokeWidth="2" points="0,35 20,30 40,32 60,20 80,15 120,10" /></svg>
+            </div>
+          </div>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
