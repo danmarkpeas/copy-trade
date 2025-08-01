@@ -739,7 +739,13 @@ async function initializeFromDatabase() {
       api_key: follower.api_key,
       api_secret: follower.api_secret,
       name: follower.follower_name,
+      follower_name: follower.follower_name,
       id: follower.id,
+      copy_mode: follower.copy_mode || 'fixed_lot',
+      multiplier: follower.multiplier || 1.0,
+      fixed_lot: follower.fixed_lot || 0.001,
+      min_lot_size: follower.min_lot_size || 0.001,
+      max_lot_size: follower.max_lot_size || 0.01,
       size_multiplier: follower.multiplier || 1.0
     }));
 

@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const WebSocket = require('ws');
 const EventEmitter = require('events');
 
-const BASE_URL = 'https://api.india.delta.exchange/v2';
+const BASE_URL = 'https://api.india.delta.exchange';
 const WS_URL = 'wss://socket.india.delta.exchange';
 
 class TradingService extends EventEmitter {
@@ -27,7 +27,9 @@ class TradingService extends EventEmitter {
 
   getAuthHeaders(method, path, queryString = '', payload = '') {
     const timestamp = Math.floor(Date.now() / 1000).toString();
-    const signatureData = method + timestamp + path + queryString + payload;
+    // Ensure path includes /v2 prefix
+    const fullPath = path.startsWith('/v2') ? path : `/v2${path}`;
+    const signatureData = method + timestamp + fullPath + queryString + payload;
     const signature = this.generateSignature(signatureData);
 
     return {
@@ -45,7 +47,7 @@ class TradingService extends EventEmitter {
       const payload = JSON.stringify(orderData);
       const headers = this.getAuthHeaders('POST', '/orders', '', payload);
 
-      const response = await axios.post(`${BASE_URL}/orders`, orderData, {
+      const response = await axios.post(`${BASE_URL}/v2/orders`, orderData, {
         headers,
         timeout: 10000
       });
@@ -77,7 +79,7 @@ class TradingService extends EventEmitter {
       const payload = JSON.stringify({ id: orderId, product_id: productId });
       const headers = this.getAuthHeaders('DELETE', '/orders', '', payload);
 
-      const response = await axios.delete(`${BASE_URL}/orders`, {
+      const response = await axios.delete(`${BASE_URL}/v2/orders`, {
         headers,
         data: { id: orderId, product_id: productId },
         timeout: 10000
@@ -104,7 +106,7 @@ class TradingService extends EventEmitter {
     try {
       const headers = this.getAuthHeaders('GET', '/positions/margined');
 
-      const response = await axios.get(`${BASE_URL}/positions/margined`, {
+      const response = await axios.get(`${BASE_URL}/v2/positions/margined`, {
         headers,
         timeout: 10000
       });
@@ -133,7 +135,7 @@ class TradingService extends EventEmitter {
       
       const headers = this.getAuthHeaders('GET', '/orders', fullQueryString);
 
-      const response = await axios.get(`${BASE_URL}/orders`, {
+      const response = await axios.get(`${BASE_URL}/v2/orders`, {
         params: filters,
         headers,
         timeout: 10000

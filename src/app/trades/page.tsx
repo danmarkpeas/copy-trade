@@ -337,7 +337,7 @@ export default function TradesPage() {
       const result = await response.json()
 
       if (response.ok) {
-        setMonitoringResult(result.data)
+        setMonitoringResult(result)
         // Refresh copied trades after monitoring
         await fetchCopiedTrades()
       } else {
@@ -408,18 +408,57 @@ export default function TradesPage() {
       {monitoringResult && (
         <Card className="mb-6 border-green-200 bg-green-50">
           <CardContent className="pt-6">
-            <h3 className="font-semibold text-green-800 mb-2">✅ Monitoring Results</h3>
+            <h3 className="font-semibold text-green-800 mb-2">✅ Real-Time Monitoring Results</h3>
             <div className="text-sm text-green-700">
-              <p><strong>System Status:</strong> {monitoringResult.systemStatus?.isConnected ? '✅ Connected' : '❌ Disconnected'}</p>
-              <p><strong>Authentication:</strong> {monitoringResult.systemStatus?.isAuthenticated ? '✅ Authenticated' : '❌ Not Authenticated'}</p>
-              <p><strong>Total Trades:</strong> {monitoringResult.tradingStats?.totalTrades || 0}</p>
-              <p><strong>Successful Copies:</strong> {monitoringResult.tradingStats?.successfulCopies || 0}</p>
-              <p><strong>Failed Copies:</strong> {monitoringResult.tradingStats?.failedCopies || 0}</p>
-              <p><strong>Success Rate:</strong> {monitoringResult.tradingStats?.successRate || '0%'}</p>
-              <p><strong>Total Volume:</strong> {monitoringResult.tradingStats?.totalVolume || 0}</p>
-              <p><strong>Queue Length:</strong> {monitoringResult.queue?.length || 0}</p>
+              <p><strong>Status:</strong> {monitoringResult.success ? '✅ Success' : '❌ Failed'}</p>
+              <p><strong>Message:</strong> {monitoringResult.message}</p>
+              <p><strong>Broker ID:</strong> {monitoringResult.broker_id}</p>
+              <p><strong>Total Trades Found:</strong> {monitoringResult.total_trades_found || 0}</p>
+              <p><strong>Active Followers:</strong> {monitoringResult.active_followers || 0}</p>
+              <p><strong>Trades Copied:</strong> {monitoringResult.trades_copied || 0}</p>
+              <p><strong>Positions:</strong> {monitoringResult.positions?.length || 0} active positions</p>
               <p><strong>Timestamp:</strong> {formatDate(monitoringResult.timestamp)}</p>
             </div>
+            
+            {monitoringResult.copy_results && monitoringResult.copy_results.length > 0 && (
+              <div className="mt-4">
+                <h4 className="font-semibold text-green-800 mb-2">Recent Trades:</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-green-300">
+                        <th className="text-left p-1">Symbol</th>
+                        <th className="text-left p-1">Side</th>
+                        <th className="text-left p-1">Size</th>
+                        <th className="text-left p-1">Price</th>
+                        <th className="text-left p-1">Status</th>
+                        <th className="text-left p-1">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monitoringResult.copy_results.slice(0, 5).map((trade, index) => (
+                        <tr key={index} className="border-b border-green-200">
+                          <td className="p-1 font-medium">{trade.symbol}</td>
+                          <td className="p-1">
+                            <Badge variant={trade.side === 'buy' ? 'default' : 'secondary'} className="text-xs">
+                              {trade.side.toUpperCase()}
+                            </Badge>
+                          </td>
+                          <td className="p-1">{formatNumber(trade.size)}</td>
+                          <td className="p-1">${formatNumber(trade.price)}</td>
+                          <td className="p-1">
+                            <Badge variant={getStatusVariant(trade.status)} className="text-xs">
+                              {trade.status}
+                            </Badge>
+                          </td>
+                          <td className="p-1 text-xs">{new Date(trade.timestamp).toLocaleTimeString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

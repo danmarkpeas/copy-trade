@@ -1,202 +1,157 @@
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+const axios = require('axios');
 
 async function testCopyTradeExecution() {
-  console.log('🧪 TESTING COPY TRADE EXECUTION\n');
-  
-  // Supabase setup
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://urjgxetnqogwryhpafma.supabase.co';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
-  try {
-    // Get active followers
-    const { data: followers, error: followersError } = await supabase
-      .from('followers')
-      .select('*')
-      .eq('account_status', 'active');
-
-    if (followersError || !followers || followers.length === 0) {
-      console.error('❌ No active followers found');
-      return;
-    }
-
-    const follower = followers[0];
-    console.log(`👤 Testing with follower: ${follower.follower_name}`);
-
-    // Test 1: Check follower balance
-    console.log('\n📋 TEST 1: CHECKING FOLLOWER BALANCE');
-    const balance = await getFollowerBalance(follower);
-    if (balance && balance.usd) {
-      console.log(`✅ Balance: $${balance.usd} USD`);
-      console.log(`✅ Sufficient for trading: ${parseFloat(balance.usd) >= 0.05 ? 'YES' : 'NO'}`);
-    } else {
-      console.log(`❌ Failed to get balance`);
-      return;
-    }
-
-    // Test 2: Test order placement
-    console.log('\n📋 TEST 2: TESTING ORDER PLACEMENT');
-    const testOrder = await placeTestOrder(follower);
-    if (testOrder.success) {
-      console.log(`✅ Test order placed successfully`);
-      console.log(`   Order ID: ${testOrder.orderId}`);
-      console.log(`   Status: ${testOrder.status}`);
-    } else {
-      console.log(`❌ Test order failed: ${testOrder.error}`);
-      return;
-    }
-
-    // Test 3: Check recent failed copy trades
-    console.log('\n📋 TEST 3: ANALYZING RECENT FAILED COPY TRADES');
-    const { data: failedTrades, error: failedError } = await supabase
-      .from('copy_trades')
-      .select('*')
-      .eq('status', 'failed')
-      .order('created_at', { ascending: false })
-      .limit(3);
-
-    if (!failedError && failedTrades && failedTrades.length > 0) {
-      console.log(`📊 Found ${failedTrades.length} recent failed trades:`);
-      failedTrades.forEach((trade, index) => {
-        console.log(`   ${index + 1}. ${trade.original_symbol} ${trade.original_side} ${trade.copied_size}`);
-        console.log(`      Time: ${new Date(trade.entry_time).toLocaleString()}`);
-        console.log(`      Master Trade ID: ${trade.master_trade_id}`);
-        console.log(`      Follower Order ID: ${trade.follower_order_id || 'NULL'}`);
-        console.log(`      Error: ${trade.error_message || 'No error message'}`);
-      });
-    }
-
-    // Test 4: Check successful copy trades for comparison
-    console.log('\n📋 TEST 4: ANALYZING SUCCESSFUL COPY TRADES');
-    const { data: successfulTrades, error: successError } = await supabase
-      .from('copy_trades')
-      .select('*')
-      .eq('status', 'executed')
-      .order('created_at', { ascending: false })
-      .limit(3);
-
-    if (!successError && successfulTrades && successfulTrades.length > 0) {
-      console.log(`📊 Found ${successfulTrades.length} successful trades:`);
-      successfulTrades.forEach((trade, index) => {
-        console.log(`   ${index + 1}. ${trade.original_symbol} ${trade.original_side} ${trade.copied_size}`);
-        console.log(`      Time: ${new Date(trade.entry_time).toLocaleString()}`);
-        console.log(`      Master Trade ID: ${trade.master_trade_id}`);
-        console.log(`      Follower Order ID: ${trade.follower_order_id || 'NULL'}`);
-      });
-    }
-
-    console.log('\n🔍 DIAGNOSIS:');
-    console.log('✅ Follower balance: Sufficient');
-    console.log('✅ Order placement: Working');
-    console.log('❌ Recent copy trades: Failing');
-    console.log('✅ Earlier copy trades: Successful');
-    
-    console.log('\n💡 ROOT CAUSE:');
-    console.log('The issue is likely in the ultra-fast system logic:');
-    console.log('1. The system is detecting trades but not executing them properly');
-    console.log('2. The order placement function works (as tested above)');
-    console.log('3. The issue is in the trade detection or execution flow');
-    console.log('4. Need to check the ultra-fast system logs for specific errors');
-    
-    console.log('\n🔧 NEXT STEPS:');
-    console.log('1. Check ultra-fast system logs for specific error messages');
-    console.log('2. Verify the trade detection logic is working correctly');
-    console.log('3. Ensure the copy trade execution flow is properly triggered');
-    console.log('4. Test with a new master trade to see the exact failure point');
-
-  } catch (error) {
-    console.error('❌ Error:', error.message);
-  }
-}
-
-async function getFollowerBalance(follower) {
-  const DELTA_API_URL = 'https://api.india.delta.exchange';
+  console.log('🧪 TESTING COPY TRADE EXECUTION');
+  console.log('=' .repeat(60));
   
   try {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const path = '/v2/wallet/balances';
-    const message = `GET${timestamp}${path}`;
-    const signature = require('crypto').createHmac('sha256', follower.api_secret).update(message).digest('hex');
-
-    const response = await fetch(`${DELTA_API_URL}${path}`, {
-      method: 'GET',
-      headers: {
-        'api-key': follower.api_key,
-        'timestamp': timestamp.toString(),
-        'signature': signature,
-        'Content-Type': 'application/json'
+    // 1. Test backend connection
+    console.log('1. Testing backend connection...');
+    const backendResponse = await axios.get('http://localhost:3001', { timeout: 5000 });
+    console.log('✅ Backend is running');
+    
+    // 2. Get copy trading status
+    console.log('\n2. Getting copy trading status...');
+    const statusResponse = await axios.get('http://localhost:3001/api/status', { timeout: 5000 });
+    const status = statusResponse.data.data;
+    
+    console.log(`✅ Copy Trading Status:`);
+    console.log(`   - Master Traders: ${status.masterTraders}`);
+    console.log(`   - Followers: ${status.followers}`);
+    console.log(`   - Copy Relationships: ${status.copyRelationships}`);
+    console.log(`   - Total Trades: ${status.totalTrades}`);
+    
+    // 3. Trigger real-time monitoring to see trade execution
+    console.log('\n3. Triggering real-time monitoring...');
+    const monitorResponse = await axios.post('http://localhost:3001/api/real-time-monitor', {
+      broker_id: 'f9593e9d-b50d-447c-80e3-a79464be7dff'
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 15000
+    });
+    
+    const monitorData = monitorResponse.data;
+    console.log(`✅ Real-Time Monitoring Results:`);
+    console.log(`   - Total Trades Found: ${monitorData.total_trades_found}`);
+    console.log(`   - Active Followers: ${monitorData.active_followers}`);
+    console.log(`   - Trades Copied: ${monitorData.trades_copied}`);
+    
+    // 4. Check recent trades
+    if (monitorData.copy_results && monitorData.copy_results.length > 0) {
+      console.log('\n4. Recent trades found:');
+      const recentTrades = monitorData.copy_results.slice(0, 3);
+      recentTrades.forEach((trade, index) => {
+        console.log(`   ${index + 1}. ${trade.symbol} ${trade.side} ${trade.size} @ ${trade.price}`);
+        console.log(`      Status: ${trade.status}`);
+        console.log(`      Time: ${new Date(trade.timestamp).toLocaleString()}`);
+      });
+    }
+    
+    // 5. Test trade history
+    console.log('\n5. Checking trade history...');
+    const historyResponse = await axios.get('http://localhost:3001/api/trade-history', { timeout: 5000 });
+    const history = historyResponse.data.data;
+    
+    console.log(`✅ Trade History:`);
+    console.log(`   - Total Records: ${history.length}`);
+    
+    if (history.length > 0) {
+      console.log('\n   Recent copy trades:');
+      const recentCopyTrades = history.slice(0, 3);
+      recentCopyTrades.forEach((trade, index) => {
+        console.log(`   ${index + 1}. Master: ${trade.masterId} → Follower: ${trade.followerId}`);
+        console.log(`      Symbol: ${trade.masterTrade.symbol}`);
+        console.log(`      Side: ${trade.masterTrade.side}`);
+        console.log(`      Size: ${trade.masterTrade.size}`);
+        console.log(`      Success: ${trade.result.success}`);
+        if (!trade.result.success) {
+          console.log(`      Error: ${trade.result.error || 'Unknown error'}`);
+        }
+      });
+    }
+    
+    // 6. Summary and analysis
+    console.log('\n' + '=' .repeat(60));
+    console.log('📊 ANALYSIS');
+    console.log('=' .repeat(60));
+    
+    if (status.followers === 3 && status.copyRelationships === 3) {
+      console.log('✅ Follower Configuration: PERFECT');
+      console.log('   - All 3 followers are properly configured');
+      console.log('   - All copy relationships are established');
+    } else {
+      console.log('❌ Follower Configuration: ISSUE');
+      console.log(`   - Expected: 3 followers, 3 relationships`);
+      console.log(`   - Actual: ${status.followers} followers, ${status.copyRelationships} relationships`);
+    }
+    
+    if (monitorData.total_trades_found > 0) {
+      console.log('✅ Trade Detection: WORKING');
+      console.log(`   - Found ${monitorData.total_trades_found} recent trades`);
+    } else {
+      console.log('❌ Trade Detection: ISSUE');
+      console.log('   - No recent trades found');
+    }
+    
+    if (history.length > 0) {
+      const successfulTrades = history.filter(t => t.result.success).length;
+      const failedTrades = history.filter(t => !t.result.success).length;
+      
+      console.log('✅ Copy Trade Execution: ATTEMPTED');
+      console.log(`   - Total attempts: ${history.length}`);
+      console.log(`   - Successful: ${successfulTrades}`);
+      console.log(`   - Failed: ${failedTrades}`);
+      
+      if (failedTrades > 0) {
+        console.log('\n🔧 FAILURE ANALYSIS:');
+        console.log('   Common reasons for copy trade failures:');
+        console.log('   1. Invalid API credentials for followers');
+        console.log('   2. Insufficient balance in follower accounts');
+        console.log('   3. API rate limiting or IP restrictions');
+        console.log('   4. Invalid order parameters (size, price, etc.)');
+        console.log('   5. Market conditions (insufficient liquidity)');
       }
-    });
-
-    const data = await response.json();
-    
-    if (response.ok && data.success && data.result) {
-      const usdBalance = data.result.find(b => b.asset_symbol === 'USD');
-      return {
-        usd: usdBalance ? usdBalance.available_balance : '0'
-      };
     } else {
-      return null;
+      console.log('❌ Copy Trade Execution: NOT ATTEMPTED');
+      console.log('   - No copy trades have been attempted yet');
+      console.log('   - This could mean:');
+      console.log('     * No new trades detected since server restart');
+      console.log('     * Copy relationships not properly established');
+      console.log('     * WebSocket connection issues');
     }
+    
+    // 7. Recommendations
+    console.log('\n' + '=' .repeat(60));
+    console.log('🔧 RECOMMENDATIONS');
+    console.log('=' .repeat(60));
+    
+    if (history.length === 0) {
+      console.log('1. Wait for new master trades to trigger copy execution');
+      console.log('2. Check server logs for WebSocket connection status');
+      console.log('3. Verify master trader is actively trading');
+    } else if (history.filter(t => !t.result.success).length > 0) {
+      console.log('1. Check follower API credentials validity');
+      console.log('2. Verify follower account balances');
+      console.log('3. Check IP whitelisting for follower API keys');
+      console.log('4. Review order parameters and market conditions');
+    } else {
+      console.log('🎉 SUCCESS: Copy trading is working correctly!');
+    }
+    
   } catch (error) {
-    return null;
+    console.error('❌ Test failed:', error.message);
+    
+    if (error.code === 'ECONNREFUSED') {
+      console.log('\n🔧 SOLUTION: Backend server is not running');
+      console.log('   Run: node server.js');
+    } else if (error.response?.status === 404) {
+      console.log('\n🔧 SOLUTION: API endpoint not found');
+      console.log('   Check if server.js is properly configured');
+    } else {
+      console.log('\n🔧 SOLUTION: Check server logs for detailed error information');
+    }
   }
 }
 
-async function placeTestOrder(follower) {
-  const DELTA_API_URL = 'https://api.india.delta.exchange';
-  const productIds = {
-    'POLUSD': 39943
-  };
-  
-  try {
-    const productId = productIds['POLUSD'];
-    const timestamp = Math.floor(Date.now() / 1000);
-    const path = '/v2/orders';
-    
-    const orderData = {
-      product_id: productId,
-      size: 1,
-      side: 'buy',
-      order_type: 'market_order',
-      time_in_force: 'gtc'
-    };
-
-    const message = `POST${timestamp}${path}${JSON.stringify(orderData)}`;
-    const signature = require('crypto').createHmac('sha256', follower.api_secret).update(message).digest('hex');
-
-    const response = await fetch(`${DELTA_API_URL}${path}`, {
-      method: 'POST',
-      headers: {
-        'api-key': follower.api_key,
-        'timestamp': timestamp.toString(),
-        'signature': signature,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(orderData)
-    });
-
-    const data = await response.json();
-    
-    if (response.ok && data.success) {
-      return {
-        success: true,
-        orderId: data.result.id,
-        status: data.result.state
-      };
-    } else {
-      return {
-        success: false,
-        error: data.error?.code || data.message || 'Unknown error'
-      };
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
+// Run the test
 testCopyTradeExecution().catch(console.error); 

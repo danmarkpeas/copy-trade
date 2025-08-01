@@ -64,6 +64,7 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/api/health',
       status: '/api/status',
+      setUser: '/api/set-user',
       realTimeMonitor: '/api/real-time-monitor',
       tradeHistory: '/api/trade-history'
     }
@@ -155,9 +156,9 @@ async function initializeCopyTrading() {
       );
       
       if (result.success) {
-        console.log(`✅ Added master trader: ${broker.account_name}`);
+        console.log(`✅ Added master trader: ${broker.account_name || 'Master'}`);
       } else {
-        console.log(`❌ Failed to add master trader: ${broker.account_name} - ${result.error}`);
+        console.log(`❌ Failed to add master trader: ${result.error}`);
       }
     }
 
@@ -172,39 +173,51 @@ async function initializeCopyTrading() {
       return;
     }
 
-    // Add followers
-    for (const follower of followers) {
-      const masterBroker = brokerAccounts.find(b => b.id === follower.master_broker_account_id);
-      
-      if (masterBroker) {
-        const copySettings = {
-          copyRatio: follower.copy_mode === 'multiplier' ? 0.1 : 1.0,
-          symbolFilter: [], // Copy all symbols
-          minTradeSize: 0.01, // Minimum trade size to avoid zero
-          maxTradeSize: 1000,
-          useMarketOrders: true,
-          reverseDirection: false,
-          copyPositionClose: true
-        };
+    console.log(`✅ Found ${followers.length} active followers`);
 
-        const result = copyEngine.addFollower(
-          follower.user_id,
-          masterBroker.api_key, // In production, use follower's own API key
-          masterBroker.api_secret, // In production, use follower's own API secret
-          copySettings
+    // Track added followers to prevent duplicates
+    const addedFollowers = new Set();
+
+    // Add followers to copy trading engine
+    for (const follower of followers) {
+      // Skip if already added
+      if (addedFollowers.has(follower.id)) {
+        console.log(`⏭️  Skipping duplicate follower: ${follower.follower_name}`);
+        continue;
+      }
+
+      // Add follower to copy trading engine using their unique ID
+      const result = copyEngine.addFollower(
+        follower.id, // Use follower's unique ID instead of user_id
+        follower.api_key,
+        follower.api_secret,
+        {
+          copyMode: follower.copy_mode || 'percentage',
+          multiplier: follower.multiplier || 1,
+          percentage: follower.percentage || 100,
+          fixedLot: follower.fixed_lot || null,
+          maxLotSize: follower.max_lot_size || 10,
+          minLotSize: follower.min_lot_size || 0.01,
+          maxDailyTrades: follower.max_daily_trades || 50,
+          maxOpenPositions: follower.max_open_positions || 5,
+          stopLossPercentage: follower.stop_loss_percentage || 5,
+          takeProfitPercentage: follower.take_profit_percentage || 10
+        }
+      );
+
+      if (result.success) {
+        console.log(`✅ Added follower: ${follower.follower_name} (${follower.id})`);
+        addedFollowers.add(follower.id);
+
+        // Create copy relationship
+        copyEngine.createCopyRelationship(
+          follower.id, // Use follower's unique ID
+          follower.master_broker_account_id
         );
 
-        if (result.success) {
-          console.log(`✅ Added follower: ${follower.follower_name}`);
-          
-          // Create copy relationship
-          copyEngine.createCopyRelationship(
-            follower.user_id,
-            follower.master_broker_account_id
-          );
-        } else {
-          console.log(`❌ Failed to add follower: ${follower.follower_name} - ${result.error}`);
-        }
+        console.log(`✅ Created copy relationship: ${follower.id} -> ${follower.master_broker_account_id}`);
+      } else {
+        console.log(`❌ Failed to add follower: ${follower.follower_name} - ${result.error}`);
       }
     }
 
@@ -376,6 +389,35 @@ app.get('/api/followers/:followerId/stats', (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Internal server error'
+    });
+  }
+});
+
+// Set current user endpoint
+app.post('/api/set-user', async (req, res) => {
+  try {
+    const { user_id, email } = req.body;
+    
+    if (!user_id || !email) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID and email are required'
+      });
+    }
+
+    console.log(`👤 User session updated: ${email} (${user_id})`);
+
+    res.json({
+      success: true,
+      message: `User session updated: ${email}`,
+      user: { id: user_id, email: email }
+    });
+
+  } catch (error) {
+    console.error('❌ Error setting user:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to set user'
     });
   }
 });

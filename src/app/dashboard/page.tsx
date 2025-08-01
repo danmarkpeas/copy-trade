@@ -171,6 +171,18 @@ function DashboardPage() {
         <div className="mb-4">🔹 <b>Error Logs:</b> <span className="text-yellow-700">[TODO]</span></div>
         <div className="mb-4">🔹 <b>Pending Trade Issues:</b> <span className="text-yellow-700">[TODO]</span></div>
         <div className="mb-4">🔹 <b>System Alerts:</b> <span className="text-yellow-700">[TODO]</span></div>
+        <div className="mt-8 p-4 bg-blue-50 rounded-lg">
+          <h2 className="text-lg font-semibold mb-2">Trade Execution Monitoring</h2>
+          <a 
+            href="/dashboard/trade-execution-status" 
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          >
+            View Trade Execution Status
+          </a>
+          <p className="text-sm text-gray-600 mt-2">
+            Monitor real-time copy trading performance and identify issues
+          </p>
+        </div>
       </main>
     )
   }

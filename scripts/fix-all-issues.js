@@ -1,249 +1,289 @@
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
-
-async function fixAllIssues() {
-  console.log('🔧 COMPREHENSIVE SYSTEM FIX');
-  console.log('==========================\n');
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
-  try {
-    // =====================================================
-    // 1. VERIFY DATA EXISTS
-    // =====================================================
-    console.log('📊 1. VERIFYING DATA EXISTS');
-    console.log('==========================');
-
-    // Check users
-    const { data: users, error: usersError } = await supabase
-      .from('users')
-      .select('id, email, name');
-
-    if (usersError) {
-      console.log('❌ Error fetching users:', usersError);
-      return;
-    }
-
-    console.log(`✅ Found ${users?.length || 0} users:`);
-    users?.forEach(user => {
-      console.log(`   - ${user.email} (${user.id})`);
-    });
-
-    // Check broker accounts
-    const { data: brokers, error: brokersError } = await supabase
-      .from('broker_accounts')
-      .select('id, user_id, broker_name, account_name, is_active');
-
-    if (brokersError) {
-      console.log('❌ Error fetching brokers:', brokersError);
-      return;
-    }
-
-    console.log(`✅ Found ${brokers?.length || 0} broker accounts:`);
-    brokers?.forEach(broker => {
-      console.log(`   - ${broker.account_name} (${broker.broker_name}) - Active: ${broker.is_active}`);
-    });
-
-    // Check followers
-    const { data: followers, error: followersError } = await supabase
-      .from('followers')
-      .select('id, user_id, follower_name, copy_mode, account_status');
-
-    if (followersError) {
-      console.log('❌ Error fetching followers:', followersError);
-      return;
-    }
-
-    console.log(`✅ Found ${followers?.length || 0} followers:`);
-    followers?.forEach(follower => {
-      console.log(`   - ${follower.follower_name} (${follower.copy_mode}) - Status: ${follower.account_status}`);
-    });
-
-    // =====================================================
-    // 2. FIX ORPHANED RECORDS
-    // =====================================================
-    console.log('\n📊 2. FIXING ORPHANED RECORDS');
-    console.log('=============================');
-
-    // Find the main user (gauravcrd@gmail.com)
-    const mainUser = users?.find(u => u.email === 'gauravcrd@gmail.com');
-    if (!mainUser) {
-      console.log('❌ Main user gauravcrd@gmail.com not found');
-      return;
-    }
-
-    console.log(`✅ Main user: ${mainUser.email} (${mainUser.id})`);
-
-    // Fix orphaned followers
-    const orphanedFollowers = followers?.filter(f => !f.user_id);
-    if (orphanedFollowers && orphanedFollowers.length > 0) {
-      console.log(`🔧 Fixing ${orphanedFollowers.length} orphaned followers...`);
-      
-      for (const follower of orphanedFollowers) {
-        const { error: updateError } = await supabase
-          .from('followers')
-          .update({ user_id: mainUser.id })
-          .eq('id', follower.id);
-        
-        if (updateError) {
-          console.log(`❌ Error fixing follower ${follower.follower_name}:`, updateError);
-        } else {
-          console.log(`✅ Fixed follower: ${follower.follower_name}`);
-        }
-      }
-    } else {
-      console.log('✅ No orphaned followers found');
-    }
-
-    // Fix orphaned broker accounts
-    const orphanedBrokers = brokers?.filter(b => !b.user_id);
-    if (orphanedBrokers && orphanedBrokers.length > 0) {
-      console.log(`🔧 Fixing ${orphanedBrokers.length} orphaned broker accounts...`);
-      
-      for (const broker of orphanedBrokers) {
-        const { error: updateError } = await supabase
-          .from('broker_accounts')
-          .update({ user_id: mainUser.id })
-          .eq('id', broker.id);
-        
-        if (updateError) {
-          console.log(`❌ Error fixing broker ${broker.account_name}:`, updateError);
-        } else {
-          console.log(`✅ Fixed broker: ${broker.account_name}`);
-        }
-      }
-    } else {
-      console.log('✅ No orphaned broker accounts found');
-    }
-
-    // =====================================================
-    // 3. UPDATE API KEYS
-    // =====================================================
-    console.log('\n📊 3. UPDATING API KEYS');
-    console.log('=======================');
-
-    // Check current API keys
-    const { data: brokerDetails, error: detailsError } = await supabase
-      .from('broker_accounts')
-      .select('id, account_name, api_key, api_secret')
-      .eq('is_active', true);
-
-    if (detailsError) {
-      console.log('❌ Error fetching broker details:', detailsError);
-    } else if (brokerDetails && brokerDetails.length > 0) {
-      console.log('🔍 Current API keys:');
-      brokerDetails.forEach(broker => {
-        const isTestKey = broker.api_key?.includes('test') || 
-                         broker.api_secret?.includes('test') ||
-                         broker.api_key?.length < 20;
-        
-        if (isTestKey) {
-          console.log(`   ⚠️  ${broker.account_name}: Using test keys`);
-          console.log(`      🔧 Please update with real Delta Exchange API keys`);
-        } else {
-          console.log(`   ✅ ${broker.account_name}: Using real keys`);
-        }
-      });
-    }
-
-    // =====================================================
-    // 4. CREATE FRONTEND AUTHENTICATION SCRIPT
-    // =====================================================
-    console.log('\n📊 4. CREATING FRONTEND AUTH SCRIPT');
-    console.log('===================================');
-
-    const authScript = `
-// FRONTEND AUTHENTICATION SCRIPT
-// Run this in the browser console to login
-
+const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 
-// Create Supabase client
-const supabaseUrl = '${process.env.NEXT_PUBLIC_SUPABASE_URL}';
-const supabaseKey = '${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Login with gauravcrd@gmail.com
-async function loginUser() {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: 'gauravcrd@gmail.com',
-    password: 'your_password_here' // Replace with actual password
-  });
-  
-  if (error) {
-    console.error('Login error:', error);
-  } else {
-    console.log('Login successful:', data.user.email);
-  }
-}
-
-loginUser();
-`;
-
-    console.log('📝 Frontend auth script created');
-    console.log('🔧 To fix frontend authentication:');
-    console.log('   1. Go to http://localhost:3000/login');
-    console.log('   2. Login with gauravcrd@gmail.com');
-    console.log('   3. Or create a new account if needed');
-
-    // =====================================================
-    // 5. RESTART SYSTEM
-    // =====================================================
-    console.log('\n📊 5. SYSTEM RESTART INSTRUCTIONS');
-    console.log('==================================');
-
-    console.log('🔧 To restart the system:');
-    console.log('   1. Stop all Node.js processes: taskkill /f /im node.exe');
-    console.log('   2. Start backend: node server-enhanced.js');
-    console.log('   3. Start frontend: npm run dev');
-    console.log('   4. Login to frontend with gauravcrd@gmail.com');
-    console.log('   5. Update API keys in /connect-broker page');
-
-    // =====================================================
-    // 6. FINAL STATUS
-    // =====================================================
-    console.log('\n📊 6. FINAL STATUS');
-    console.log('==================');
-
-    // Re-check data after fixes
-    const { data: finalFollowers, error: finalFollowersError } = await supabase
-      .from('followers')
-      .select('id, user_id, follower_name')
-      .eq('user_id', mainUser.id);
-
-    if (finalFollowersError) {
-      console.log('❌ Error checking final followers:', finalFollowersError);
-    } else {
-      console.log(`✅ ${finalFollowers?.length || 0} followers now belong to ${mainUser.email}`);
+class AllIssuesFix {
+    constructor() {
+        this.supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://urjgxetnqogwryhpafma.supabase.co';
+        this.supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        this.supabase = createClient(this.supabaseUrl, this.supabaseKey);
+        this.currentIP = null;
     }
 
-    const { data: finalBrokers, error: finalBrokersError } = await supabase
-      .from('broker_accounts')
-      .select('id, user_id, account_name')
-      .eq('user_id', mainUser.id);
-
-    if (finalBrokersError) {
-      console.log('❌ Error checking final brokers:', finalBrokersError);
-    } else {
-      console.log(`✅ ${finalBrokers?.length || 0} broker accounts now belong to ${mainUser.email}`);
+    async getCurrentIP() {
+        try {
+            const response = await axios.get('https://api.ipify.org', { timeout: 5000 });
+            this.currentIP = response.data.trim();
+            console.log(`📍 Your Public IP: ${this.currentIP}`);
+            return this.currentIP;
+        } catch (error) {
+            console.log('❌ Failed to get IP address');
+            return null;
+        }
     }
 
-    console.log('\n🎉 ALL FIXES COMPLETED!');
-    console.log('=======================');
-    console.log('✅ Data relationships fixed');
-    console.log('✅ Orphaned records resolved');
-    console.log('✅ System ready for restart');
-    console.log('\n📋 NEXT STEPS:');
-    console.log('   1. Restart the system');
-    console.log('   2. Login to frontend');
-    console.log('   3. Update API keys');
-    console.log('   4. Test copy trading');
+    async checkDatabaseConnection() {
+        console.log('\n🔍 Checking database connection...');
+        
+        try {
+            const { data, error } = await this.supabase
+                .from('users')
+                .select('count')
+                .limit(1);
+            
+            if (error) {
+                console.log('❌ Database connection failed:', error.message);
+                return false;
+            }
+            
+            console.log('✅ Database connection successful');
+            return true;
+        } catch (error) {
+            console.log('❌ Database connection error:', error.message);
+            return false;
+        }
+    }
 
-  } catch (error) {
-    console.error('❌ Fix failed:', error);
-  }
+    async checkBrokerAccounts() {
+        console.log('\n🔍 Checking broker accounts...');
+        
+        try {
+            const { data: brokerAccounts, error } = await this.supabase
+                .from('broker_accounts')
+                .select('*')
+                .limit(10);
+            
+            if (error) {
+                console.log('❌ Error fetching broker accounts:', error.message);
+                return false;
+            }
+            
+            console.log(`✅ Found ${brokerAccounts.length} broker accounts`);
+            
+            if (brokerAccounts.length === 0) {
+                console.log('⚠️  No broker accounts found. You need to create one.');
+                return false;
+            }
+            
+            // Check for active broker accounts
+            const activeAccounts = brokerAccounts.filter(account => account.is_active);
+            console.log(`📊 Active broker accounts: ${activeAccounts.length}`);
+            
+            if (activeAccounts.length === 0) {
+                console.log('⚠️  No active broker accounts found.');
+                return false;
+            }
+            
+            return true;
+        } catch (error) {
+            console.log('❌ Error checking broker accounts:', error.message);
+            return false;
+        }
+    }
+
+    async checkFollowers() {
+        console.log('\n🔍 Checking followers...');
+        
+        try {
+            const { data: followers, error } = await this.supabase
+                .from('followers')
+                .select('*')
+                .limit(10);
+            
+            if (error) {
+                console.log('❌ Error fetching followers:', error.message);
+                return false;
+            }
+            
+            console.log(`✅ Found ${followers.length} followers`);
+            return true;
+        } catch (error) {
+            console.log('❌ Error checking followers:', error.message);
+            return false;
+        }
+    }
+
+    async testTradeMonitoringWithRealBroker() {
+        console.log('\n🔍 Testing trade monitoring with real broker...');
+        
+        try {
+            // Get a real broker account
+            const { data: brokerAccounts, error } = await this.supabase
+                .from('broker_accounts')
+                .select('id, user_id')
+                .eq('is_active', true)
+                .limit(1);
+            
+            if (error || !brokerAccounts || brokerAccounts.length === 0) {
+                console.log('❌ No active broker accounts found');
+                return false;
+            }
+            
+            const brokerId = brokerAccounts[0].id;
+            console.log(`📊 Testing with broker ID: ${brokerId}`);
+            
+            const response = await axios.post('http://localhost:3000/api/real-time-monitor', {
+                broker_id: brokerId
+            }, { timeout: 15000 });
+            
+            console.log('✅ Trade monitoring test successful');
+            console.log('Response:', JSON.stringify(response.data, null, 2));
+            return true;
+        } catch (error) {
+            if (error.response) {
+                console.log(`❌ Trade monitoring test failed: ${error.response.status}`);
+                console.log('Error:', JSON.stringify(error.response.data, null, 2));
+            } else {
+                console.log(`❌ Trade monitoring test failed: ${error.message}`);
+            }
+            return false;
+        }
+    }
+
+    async createTestBrokerAccount() {
+        console.log('\n🔧 Creating test broker account...');
+        
+        try {
+            // Get first user
+            const { data: users, error: userError } = await this.supabase
+                .from('users')
+                .select('id')
+                .limit(1);
+            
+            if (userError || !users || users.length === 0) {
+                console.log('❌ No users found in database');
+                return false;
+            }
+            
+            const userId = users[0].id;
+            
+            // Create test broker account
+            const { data: brokerAccount, error } = await this.supabase
+                .from('broker_accounts')
+                .insert({
+                    user_id: userId,
+                    platform: 'delta_exchange',
+                    api_key: 'test_api_key',
+                    api_secret: 'test_api_secret',
+                    is_active: true,
+                    name: 'Test Broker Account'
+                })
+                .select()
+                .single();
+            
+            if (error) {
+                console.log('❌ Error creating test broker account:', error.message);
+                return false;
+            }
+            
+            console.log('✅ Test broker account created successfully');
+            console.log(`Broker ID: ${brokerAccount.id}`);
+            return brokerAccount.id;
+        } catch (error) {
+            console.log('❌ Error creating test broker account:', error.message);
+            return false;
+        }
+    }
+
+    async fixIPWhitelistIssue() {
+        console.log('\n🔧 Fixing IP whitelist issue...');
+        
+        if (!this.currentIP) {
+            await this.getCurrentIP();
+        }
+        
+        console.log('\n📋 To fix the IP whitelist issue:');
+        console.log('1. Go to: https://www.delta.exchange/app/account/manageapikeys');
+        console.log('2. Find your API key');
+        console.log('3. Click "Edit" on the API key');
+        console.log('4. Add this IP to the whitelist:');
+        console.log(`   ${this.currentIP}`);
+        console.log('5. Save the changes');
+        console.log('\n🔄 After adding the IP, restart the copy trading system');
+        
+        return true;
+    }
+
+    async runCompleteFix() {
+        console.log('🔧 COMPLETE SYSTEM FIX');
+        console.log('='.repeat(50));
+        
+        // Get current IP
+        await this.getCurrentIP();
+        
+        // Check all components
+        const results = {
+            database: await this.checkDatabaseConnection(),
+            brokerAccounts: await this.checkBrokerAccounts(),
+            followers: await this.checkFollowers(),
+            tradeMonitoring: await this.testTradeMonitoringWithRealBroker()
+        };
+        
+        // Summary
+        console.log('\n' + '='.repeat(50));
+        console.log('FIX SUMMARY');
+        console.log('='.repeat(50));
+        
+        const passed = Object.values(results).filter(Boolean).length;
+        const total = Object.keys(results).length;
+        
+        for (const [component, result] of Object.entries(results)) {
+            const status = result ? '✅ PASS' : '❌ FAIL';
+            console.log(`${component.replace(/([A-Z])/g, ' $1').toUpperCase()}: ${status}`);
+        }
+        
+        console.log(`\nOverall: ${passed}/${total} components working`);
+        
+        // Fix issues
+        console.log('\n' + '='.repeat(50));
+        console.log('FIXING ISSUES');
+        console.log('='.repeat(50));
+        
+        if (!results.database) {
+            console.log('❌ Database connection issue - check Supabase configuration');
+        }
+        
+        if (!results.brokerAccounts) {
+            console.log('🔧 Creating test broker account...');
+            const brokerId = await this.createTestBrokerAccount();
+            if (brokerId) {
+                console.log('✅ Test broker account created');
+                // Test trade monitoring again
+                await this.testTradeMonitoringWithRealBroker();
+            }
+        }
+        
+        if (!results.tradeMonitoring) {
+            console.log('🔧 Trade monitoring issue detected');
+            console.log('This might be due to:');
+            console.log('1. No active broker accounts');
+            console.log('2. API key not configured');
+            console.log('3. IP whitelist issue');
+        }
+        
+        // Always show IP whitelist fix
+        await this.fixIPWhitelistIssue();
+        
+        console.log('\n' + '='.repeat(50));
+        console.log('NEXT STEPS');
+        console.log('='.repeat(50));
+        console.log('1. Add your IP to Delta Exchange API whitelist');
+        console.log('2. Configure your real API credentials');
+        console.log('3. Test the trade monitoring functionality');
+        console.log('4. Access the platform at: http://localhost:3000');
+        
+        return results;
+    }
 }
 
-fixAllIssues(); 
+async function main() {
+    const fixer = new AllIssuesFix();
+    const results = await fixer.runCompleteFix();
+    
+    return results;
+}
+
+if (require.main === module) {
+    main().catch(console.error);
+}
+
+module.exports = AllIssuesFix; 

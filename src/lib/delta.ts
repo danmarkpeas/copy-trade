@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 
-const DELTA_API_URL = 'https://api.delta.exchange';
+const DELTA_API_URL = 'https://api.india.delta.exchange';
 const DELTA_API_KEY = process.env.NEXT_PUBLIC_DELTA_API_KEY!;
 const DELTA_API_SECRET = process.env.NEXT_PUBLIC_DELTA_API_SECRET!;
 

@@ -1,6 +1,7 @@
 // services/CopyTradingEngine.js
 const TradingService = require('./TradingService');
 const EventEmitter = require('events');
+const DeltaExchangeFollowerService = require('./DeltaExchangeFollowerService');
 
 class CopyTradingEngine extends EventEmitter {
   constructor() {
@@ -45,30 +46,21 @@ class CopyTradingEngine extends EventEmitter {
 
   addFollower(followerId, apiKey, apiSecret, copySettings) {
     try {
-      const followerService = new TradingService(apiKey, apiSecret);
+      // Create Delta Exchange service for follower
+      const followerService = new DeltaExchangeFollowerService(apiKey, apiSecret);
       
-      followerService.on('orderPlaced', (orderData) => {
-        this.emit('followerOrderPlaced', { followerId, orderData });
-      });
-
-      followerService.on('orderError', (errorData) => {
-        this.emit('followerOrderError', { followerId, errorData });
-      });
-
-      followerService.on('authenticated', () => {
-        console.log(`Follower ${followerId} authenticated`);
-        this.emit('followerConnected', followerId);
-      });
-
-      followerService.connectWebSocket();
-      
+      // Store follower data
       this.followers.set(followerId, {
         service: followerService,
         settings: copySettings
       });
 
+      console.log(`✅ Follower ${followerId} added with API credentials`);
+      this.emit('followerAdded', { followerId, settings: copySettings });
+      
       return { success: true, message: 'Follower added successfully' };
     } catch (error) {
+      console.error('Error adding follower:', error);
       return { success: false, error: error.message };
     }
   }
@@ -153,6 +145,13 @@ class CopyTradingEngine extends EventEmitter {
 
       this.tradeHistory.push(tradeRecord);
       this.emit('copyTradeExecuted', tradeRecord);
+
+      // Log the result
+      if (result.success) {
+        console.log(`✅ Copy trade executed successfully for follower ${followerId}: ${copyOrder.product_symbol} ${copyOrder.side} ${copyOrder.size}`);
+      } else {
+        console.error(`❌ Copy trade failed for follower ${followerId}: ${result.error}`);
+      }
 
       return result;
     } catch (error) {

@@ -524,9 +524,11 @@ export default function FollowersPage() {
     }
 
     try {
-      const { error } = await supabase.rpc('delete_follower_account', {
-        follower_id: followerId
-      });
+      // Use direct deletion instead of RPC function
+      const { error } = await supabase
+        .from('followers')
+        .delete()
+        .eq('id', followerId);
 
       if (error) {
         setError(`Error deleting follower account: ${error.message}`);
