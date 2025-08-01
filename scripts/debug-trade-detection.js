@@ -1,227 +1,140 @@
-const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
+const TradingService = require('../services/TradingService');
 require('dotenv').config();
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 async function debugTradeDetection() {
-  console.log('🔍 DEBUGGING TRADE DETECTION\n');
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://urjgxetnqogwryhpafma.supabase.co';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseKey) {
-    console.log('❌ SUPABASE_SERVICE_ROLE_KEY not found');
-    return;
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  console.log('🔍 DEBUGGING TRADE DETECTION');
+  console.log('=' .repeat(50));
 
   try {
-    // Get the most recent broker account
+    // 1. Get active broker accounts
+    console.log('1. Getting active broker accounts...');
+    
     const { data: brokerAccounts, error: brokerError } = await supabase
       .from('broker_accounts')
       .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .eq('is_active', true);
 
     if (brokerError || !brokerAccounts || brokerAccounts.length === 0) {
       console.log('❌ No active broker accounts found');
       return;
     }
 
-    const brokerAccount = brokerAccounts[0];
-    console.log('📋 BROKER ACCOUNT:');
-    console.log('   Name:', brokerAccount.account_name);
-    console.log('   Profile ID:', brokerAccount.account_uid);
-    console.log('   API Key:', brokerAccount.api_key);
+    console.log(`✅ Found ${brokerAccounts.length} active broker accounts`);
 
-    const API_KEY = brokerAccount.api_key;
-    const API_SECRET = brokerAccount.api_secret;
-    const BASE_URL = 'https://api.india.delta.exchange';
-
-    // Correct signature generation function
-    function generateSignature(secret, prehashString) {
-      return crypto.createHmac('sha256', secret).update(prehashString).digest('hex');
-    }
-
-    console.log('\n🔐 TESTING DELTA EXCHANGE ENDPOINTS...');
-
-    // Test 1: Fills endpoint
-    console.log('\n1️⃣ Testing fills endpoint...');
-    try {
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const method = 'GET';
-      const path = '/v2/fills';
-      const queryString = '';
-      const payload = '';
+    for (const broker of brokerAccounts) {
+      console.log(`\n🔍 Testing broker: ${broker.broker_name} (${broker.id})`);
       
-      const prehashString = method + timestamp + path + queryString + payload;
-      const signature = generateSignature(API_SECRET, prehashString);
+      if (!broker.api_key || !broker.api_secret) {
+        console.log('   ❌ Missing API credentials');
+        continue;
+      }
 
-      const headers = {
-        'Accept': 'application/json',
-        'api-key': API_KEY,
-        'signature': signature,
-        'timestamp': timestamp,
-        'User-Agent': 'copy-trading-platform'
-      };
+      // 2. Create TradingService instance
+      console.log('   🔧 Creating TradingService instance...');
+      const tradingService = new TradingService(broker.api_key, broker.api_secret);
 
-      const response = await fetch(`${BASE_URL}${path}`, {
-        method: 'GET',
-        headers: headers
+      // 3. Set up event listeners
+      console.log('   📡 Setting up event listeners...');
+      
+      tradingService.on('authenticated', () => {
+        console.log('   ✅ WebSocket authenticated');
       });
 
-      console.log(`   Response Status: ${response.status}`);
+      tradingService.on('userTrade', (trade) => {
+        console.log('   📊 USER TRADE DETECTED:', trade);
+      });
+
+      tradingService.on('positionUpdate', (position) => {
+        console.log('   📈 POSITION UPDATE DETECTED:', position);
+      });
+
+      tradingService.on('wsError', (error) => {
+        console.log('   ❌ WebSocket error:', error);
+      });
+
+      tradingService.on('wsClose', () => {
+        console.log('   🔌 WebSocket closed');
+      });
+
+      // 4. Connect to WebSocket
+      console.log('   🔗 Connecting to WebSocket...');
+      tradingService.connectWebSocket();
+
+      // 5. Wait for events
+      console.log('   ⏳ Waiting for trade events (30 seconds)...');
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`   ✅ Fills found: ${data.result?.length || 0}`);
-        
-        if (data.result && data.result.length > 0) {
-          console.log('   📊 Recent fills:');
-          data.result.slice(0, 3).forEach((fill, index) => {
-            const fillTime = new Date(fill.created_at);
-            const fiveMinutesAgo = new Date(Date.now() - (5 * 60 * 1000));
-            const isRecent = fillTime > fiveMinutesAgo;
-            
-            console.log(`      ${index + 1}. ${fill.product_symbol} ${fill.side} ${fill.size} @ ${fill.price} (${fillTime.toISOString()}) ${isRecent ? '🕐 RECENT' : '⏰ OLD'}`);
-          });
+      let eventCount = 0;
+      const maxWaitTime = 30000; // 30 seconds
+      const startTime = Date.now();
+
+      const checkTimeout = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        if (elapsed >= maxWaitTime) {
+          clearInterval(checkTimeout);
+          console.log('   ⏰ Timeout reached - no events detected');
+          console.log('   💡 This might indicate:');
+          console.log('      - No recent trades by the master trader');
+          console.log('      - WebSocket connection issues');
+          console.log('      - API authentication problems');
+          
+          // Disconnect
+          tradingService.disconnect();
         }
-      } else {
-        const errorText = await response.text();
-        console.log(`   ❌ Fills failed: ${errorText}`);
-      }
-    } catch (error) {
-      console.log(`   ❌ Error testing fills: ${error.message}`);
-    }
+      }, 1000);
 
-    // Test 2: Positions endpoint
-    console.log('\n2️⃣ Testing positions endpoint...');
-    try {
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const method = 'GET';
-      const path = '/v2/positions/margined';
-      const queryString = '';
-      const payload = '';
-      
-      const prehashString = method + timestamp + path + queryString + payload;
-      const signature = generateSignature(API_SECRET, prehashString);
-
-      const headers = {
-        'Accept': 'application/json',
-        'api-key': API_KEY,
-        'signature': signature,
-        'timestamp': timestamp,
-        'User-Agent': 'copy-trading-platform'
-      };
-
-      const response = await fetch(`${BASE_URL}${path}`, {
-        method: 'GET',
-        headers: headers
-      });
-
-      console.log(`   Response Status: ${response.status}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`   ✅ Positions found: ${data.result?.length || 0}`);
-        
-        if (data.result && data.result.length > 0) {
-          console.log('   📊 Current positions:');
-          data.result.forEach((pos, index) => {
-            const size = parseFloat(pos.size);
-            const side = size > 0 ? 'LONG' : 'SHORT';
-            console.log(`      ${index + 1}. ${pos.product_symbol} ${side} ${Math.abs(size)} @ ${pos.avg_price || 'N/A'} (P&L: ${pos.unrealized_pnl || 'N/A'})`);
+      // 6. Check recent trades manually
+      console.log('\n   📋 Checking recent trades manually...');
+      try {
+        const recentTrades = await tradingService.getRecentTrades();
+        if (recentTrades.success && recentTrades.data.length > 0) {
+          console.log(`   ✅ Found ${recentTrades.data.length} recent trades`);
+          console.log('   📊 Most recent trades:');
+          recentTrades.data.slice(0, 3).forEach((trade, index) => {
+            console.log(`      ${index + 1}. ${trade.symbol} ${trade.side} ${trade.size} @ ${trade.price}`);
           });
+        } else {
+          console.log('   ℹ️  No recent trades found');
         }
-      } else {
-        const errorText = await response.text();
-        console.log(`   ❌ Positions failed: ${errorText}`);
+      } catch (error) {
+        console.log('   ❌ Error fetching recent trades:', error.message);
       }
-    } catch (error) {
-      console.log(`   ❌ Error testing positions: ${error.message}`);
-    }
 
-    // Test 3: Orders history endpoint
-    console.log('\n3️⃣ Testing orders history endpoint...');
-    try {
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const method = 'GET';
-      const path = '/v2/orders/history';
-      const queryString = '';
-      const payload = '';
-      
-      const prehashString = method + timestamp + path + queryString + payload;
-      const signature = generateSignature(API_SECRET, prehashString);
-
-      const headers = {
-        'Accept': 'application/json',
-        'api-key': API_KEY,
-        'signature': signature,
-        'timestamp': timestamp,
-        'User-Agent': 'copy-trading-platform'
-      };
-
-      const response = await fetch(`${BASE_URL}${path}`, {
-        method: 'GET',
-        headers: headers
-      });
-
-      console.log(`   Response Status: ${response.status}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`   ✅ Orders found: ${data.result?.length || 0}`);
-        
-        if (data.result && data.result.length > 0) {
-          console.log('   📊 Recent orders:');
-          data.result.slice(0, 3).forEach((order, index) => {
-            const orderTime = new Date(order.created_at);
-            const fiveMinutesAgo = new Date(Date.now() - (5 * 60 * 1000));
-            const isRecent = orderTime > fiveMinutesAgo;
-            
-            console.log(`      ${index + 1}. ${order.product_symbol} ${order.side} ${order.size} @ ${order.limit_price || order.avg_price || 'N/A'} (${orderTime.toISOString()}) ${isRecent ? '🕐 RECENT' : '⏰ OLD'}`);
+      // 7. Check positions
+      console.log('\n   📊 Checking current positions...');
+      try {
+        const positions = await tradingService.getPositions();
+        if (positions.success && positions.data.length > 0) {
+          console.log(`   ✅ Found ${positions.data.length} open positions`);
+          positions.data.forEach((pos, index) => {
+            console.log(`      ${index + 1}. ${pos.product_symbol} ${pos.size} @ ${pos.entry_price}`);
           });
+        } else {
+          console.log('   ℹ️  No open positions found');
         }
-      } else {
-        const errorText = await response.text();
-        console.log(`   ❌ Orders failed: ${errorText}`);
+      } catch (error) {
+        console.log('   ❌ Error fetching positions:', error.message);
       }
-    } catch (error) {
-      console.log(`   ❌ Error testing orders: ${error.message}`);
+
+      // Wait a bit more for any delayed events
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      clearInterval(checkTimeout);
+      tradingService.disconnect();
     }
 
-    // Test 4: Edge Function with detailed logging
-    console.log('\n4️⃣ Testing Edge Function with detailed logging...');
-    try {
-      const { data: result, error: invokeError } = await supabase.functions.invoke('real-time-trade-monitor', {
-        body: { broker_id: brokerAccount.id }
-      });
-
-      if (invokeError) {
-        console.log('❌ Edge Function failed:', invokeError);
-      } else {
-        console.log('✅ Edge Function result:');
-        console.log('   Success:', result.success);
-        console.log('   Total trades found:', result.total_trades_found);
-        console.log('   Active followers:', result.active_followers);
-        console.log('   Trades copied:', result.trades_copied);
-        console.log('   Message:', result.message);
-        console.log('   Timestamp:', result.timestamp);
-      }
-    } catch (error) {
-      console.log('❌ Error testing Edge Function:', error.message);
-    }
-
-    console.log('\n🎯 ANALYSIS:');
-    console.log('✅ API endpoints are working and returning data');
-    console.log('✅ Positions endpoint shows 1 position (your open trade)');
-    console.log('⚠️ Edge Function is not detecting trades from positions');
-    console.log('🔧 This suggests the Edge Function logic needs adjustment');
+    console.log('\n🎯 DEBUG COMPLETE');
+    console.log('📊 If no trade events were detected, the master trader may not have made recent trades');
+    console.log('💡 Try having the master trader place a new trade to test the system');
 
   } catch (error) {
-    console.log('❌ Unexpected error:', error.message);
+    console.error('❌ Debug failed:', error);
   }
 }
 
-debugTradeDetection().catch(console.error); 
+debugTradeDetection(); 

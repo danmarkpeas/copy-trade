@@ -73,7 +73,17 @@ class DeltaExchangeFollowerService {
     try {
       console.log(`📊 Placing order for follower: ${orderData.product_symbol} ${orderData.side} ${orderData.size}`);
       
-      const response = await this.makeAuthenticatedRequest('POST', '/orders', JSON.stringify(orderData));
+      // Fix the order schema - ensure size is an integer
+      const fixedOrderData = {
+        product_symbol: orderData.product_symbol,
+        size: Math.floor(orderData.size), // Convert to integer
+        side: orderData.side,
+        order_type: orderData.order_type || 'market_order'
+      };
+      
+      console.log(`📝 Fixed order data:`, JSON.stringify(fixedOrderData, null, 2));
+      
+      const response = await this.makeAuthenticatedRequest('POST', '/orders', JSON.stringify(fixedOrderData));
       
       if (response.success) {
         console.log(`✅ Order placed successfully: ${orderData.product_symbol} ${orderData.side} ${orderData.size}`);

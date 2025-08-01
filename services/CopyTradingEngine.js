@@ -2,6 +2,7 @@
 const TradingService = require('./TradingService');
 const EventEmitter = require('events');
 const DeltaExchangeFollowerService = require('./DeltaExchangeFollowerService');
+const PositionClosingDetector = require('./PositionClosingDetector');
 
 class CopyTradingEngine extends EventEmitter {
   constructor() {
@@ -10,6 +11,7 @@ class CopyTradingEngine extends EventEmitter {
     this.followers = new Map(); // followerId -> { service: TradingService, settings: CopySettings }
     this.copyRelationships = new Map(); // followerId -> Set of masterIds
     this.tradeHistory = [];
+    this.positionDetectors = new Map(); // masterId -> PositionClosingDetector
   }
 
   addMasterTrader(masterId, apiKey, apiSecret) {
@@ -28,6 +30,9 @@ class CopyTradingEngine extends EventEmitter {
       masterService.on('authenticated', () => {
         console.log(`Master trader ${masterId} authenticated`);
         this.emit('masterConnected', masterId);
+        
+        // Start position closing detector for this master
+        this.startPositionDetector(masterId, apiKey, apiSecret);
       });
 
       masterService.on('wsError', (error) => {
@@ -146,6 +151,29 @@ class CopyTradingEngine extends EventEmitter {
       this.tradeHistory.push(tradeRecord);
       this.emit('copyTradeExecuted', tradeRecord);
 
+      // Try to save to database, but don't fail if it doesn't work
+      try {
+        const { createClient } = require('@supabase/supabase-js');
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+
+        await supabase.from('copy_trades').insert({
+          master_id: masterId,
+          follower_id: followerId,
+          symbol: masterTrade.symbol,
+          side: copyOrder.side,
+          size: copyOrder.size,
+          price: masterTrade.price,
+          status: result.success ? 'executed' : 'failed',
+          error_message: result.success ? null : result.error,
+          executed_at: new Date().toISOString()
+        });
+      } catch (dbError) {
+        console.log('⚠️ Could not save copy trade to database (non-critical):', dbError.message);
+      }
+
       // Log the result
       if (result.success) {
         console.log(`✅ Copy trade executed successfully for follower ${followerId}: ${copyOrder.product_symbol} ${copyOrder.side} ${copyOrder.size}`);
@@ -222,24 +250,41 @@ class CopyTradingEngine extends EventEmitter {
     
     // Handle position-based copying (e.g., stop losses, take profits)
     if (position.action === 'delete') {
-      // Master closed position - potentially close follower positions
+      console.log(`🔄 Master ${masterId} deleted position - closing follower positions`);
+      // Master closed position - close follower positions
       await this.handleMasterPositionClose(masterId, position);
+    } else if (position.action === 'create') {
+      console.log(`📈 Master ${masterId} created position - no action needed for followers`);
+    } else if (position.action === 'update') {
+      console.log(`📊 Master ${masterId} updated position - no action needed for followers`);
     }
   }
 
   async handleMasterPositionClose(masterId, closedPosition) {
+    console.log(`🔄 Master ${masterId} closed position: ${closedPosition.symbol}`);
+    
     const followers = Array.from(this.copyRelationships.entries())
       .filter(([_, masterIds]) => masterIds.has(masterId))
       .map(([followerId]) => followerId);
 
+    console.log(`📊 Found ${followers.length} followers to close positions for`);
+
     for (const followerId of followers) {
       const followerData = this.followers.get(followerId);
-      if (!followerData || !followerData.settings.copyPositionClose) continue;
+      if (!followerData) {
+        console.log(`❌ Follower data not found for ${followerId}`);
+        continue;
+      }
 
       try {
+        console.log(`🔍 Checking positions for follower ${followerId}...`);
+        
         // Get follower's current positions
         const positionsResult = await followerData.service.getPositions();
-        if (!positionsResult.success) continue;
+        if (!positionsResult.success) {
+          console.log(`❌ Failed to get positions for follower ${followerId}:`, positionsResult.error);
+          continue;
+        }
 
         // Find matching position
         const matchingPosition = positionsResult.data.find(
@@ -247,27 +292,39 @@ class CopyTradingEngine extends EventEmitter {
         );
 
         if (matchingPosition && matchingPosition.size !== 0) {
+          console.log(`📈 Found matching position: ${matchingPosition.product_symbol} ${matchingPosition.size} @ ${matchingPosition.entry_price}`);
+          
           // Close the position with a market order
           const closeOrder = {
             product_symbol: closedPosition.symbol,
             size: Math.abs(matchingPosition.size),
             side: matchingPosition.size > 0 ? 'sell' : 'buy',
             order_type: 'market_order',
-            reduce_only: 'true',
             client_order_id: `close_copy_${masterId}_${Date.now()}`
           };
 
-          await followerData.service.placeOrder(closeOrder);
+          console.log(`🔄 Closing position with order:`, JSON.stringify(closeOrder, null, 2));
+
+          const closeResult = await followerData.service.placeOrder(closeOrder);
           
-          this.emit('positionCopyClosed', {
-            followerId,
-            masterId,
-            symbol: closedPosition.symbol,
-            closeOrder
-          });
+          if (closeResult.success) {
+            console.log(`✅ Position closed successfully for follower ${followerId}: ${closedPosition.symbol}`);
+            
+            this.emit('positionCopyClosed', {
+              followerId,
+              masterId,
+              symbol: closedPosition.symbol,
+              closeOrder,
+              result: closeResult
+            });
+          } else {
+            console.log(`❌ Failed to close position for follower ${followerId}:`, closeResult.error);
+          }
+        } else {
+          console.log(`ℹ️  No matching position found for follower ${followerId} in ${closedPosition.symbol}`);
         }
       } catch (error) {
-        console.error(`Error closing copy position for follower ${followerId}:`, error);
+        console.error(`❌ Error closing copy position for follower ${followerId}:`, error);
       }
     }
   }
@@ -329,6 +386,39 @@ class CopyTradingEngine extends EventEmitter {
     return stats;
   }
 
+  startPositionDetector(masterId, apiKey, apiSecret) {
+    try {
+      const detector = new PositionClosingDetector(apiKey, apiSecret);
+      
+      // Set up position closed callback
+      detector.setPositionClosedCallback((symbol, positionData, reason) => {
+        console.log(`🔄 Master ${masterId} position closed via detector: ${symbol} (${reason})`);
+        this.handleMasterPositionClose(masterId, {
+          symbol: symbol,
+          action: 'delete',
+          ...positionData
+        });
+      });
+
+      // Set up position opened callback
+      detector.setPositionOpenedCallback((symbol, positionData) => {
+        console.log(`📈 Master ${masterId} position opened via detector: ${symbol}`);
+        this.handleMasterPositionUpdate(masterId, {
+          symbol: symbol,
+          action: 'create',
+          ...positionData
+        });
+      });
+
+      detector.start();
+      this.positionDetectors.set(masterId, detector);
+      
+      console.log(`✅ Position closing detector started for master ${masterId}`);
+    } catch (error) {
+      console.error(`❌ Failed to start position detector for master ${masterId}:`, error);
+    }
+  }
+
   disconnect() {
     // Disconnect all master traders
     for (const [masterId, service] of this.masterTraders) {
@@ -340,9 +430,15 @@ class CopyTradingEngine extends EventEmitter {
       data.service.disconnect();
     }
 
+    // Stop all position detectors
+    for (const [masterId, detector] of this.positionDetectors) {
+      detector.stop();
+    }
+
     this.masterTraders.clear();
     this.followers.clear();
     this.copyRelationships.clear();
+    this.positionDetectors.clear();
   }
 }
 
